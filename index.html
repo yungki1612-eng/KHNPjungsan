@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>출장증빙</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SMR사업실 출장증빙</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://accounts.google.com/gsi/client" async></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -17,693 +15,613 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-
-        body {
-            font-family: 'Inter', sans-serif;
-            -webkit-tap-highlight-color: transparent;
-            overflow-x: hidden;
-        }
-
-        .glass-card {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-        }
-
-        @keyframes slideUp {
-            from {
-                transform: translateY(20px);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        .animate-slide-up {
-            animation: slideUp 0.4s ease-out forwards;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-
-            to {
-                opacity: 1;
-            }
-        }
-
-        .animate-fade-in {
-            animation: fadeIn 0.3s ease-out forwards;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #e2e8f0;
-            border-radius: 10px;
-        }
-
-        .handle {
-            fill: #4F46E5;
-            stroke: white;
-            stroke-width: 3;
-            cursor: pointer;
-            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-        }
-
-        .crop-line {
-            stroke: #4F46E5;
-            stroke-width: 2;
-            stroke-dasharray: 4 2;
-        }
-
-        .crop-overlay {
-            fill: rgba(0, 0, 0, 0.5);
-            fill-rule: evenodd;
-        }
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
+        .glass-card { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.5); }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slide-up { animation: slideUp 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .handle { fill: #4F46E5; stroke: white; stroke-width: 3; cursor: pointer; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+        .crop-line { stroke: #4F46E5; stroke-width: 2; stroke-dasharray: 4 2; }
+        .crop-overlay { fill: rgba(0,0,0,0.5); fill-rule: evenodd; }
     </style>
 </head>
-
 <body class="bg-gradient-to-br from-purple-50 via-pink-50 to-white min-h-screen">
-    <div id="root"></div>
-    <script>
-        'use strict';
+<div id="root"></div>
+<script>
+'use strict';
 
-        var GOOGLE_CLIENT_ID = '295698892982-43un8nsvo6chaqi3i0k06t3ed1p0bjp4.apps.googleusercontent.com';
-        var GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email';
-        var _tokenClient = null;
-        var _accessToken = null;
-        var _googleEmail = null;
-        var _tokenExpiresAt = 0;
-        var _pendingReject = null;
+var GOOGLE_CLIENT_ID = '295698892982-43un8nsvo6chaqi3i0k06t3ed1p0bjp4.apps.googleusercontent.com';
+var GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email';
+var _tokenClient = null;
+var _accessToken = null;
+var _googleEmail = null;
+var _tokenExpiresAt = 0;
+var _pendingReject = null;
 
-        function escapeHtml(s) {
-            return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
-        }
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+}
 
-        function isTokenValid() { return _accessToken && Date.now() < _tokenExpiresAt - 60000; }
+function isTokenValid() { return _accessToken && Date.now() < _tokenExpiresAt - 60000; }
 
-        function waitForGsi() {
-            return new Promise(function (resolve) {
-                if (window.google && window.google.accounts) { resolve(); return; }
-                var t = setInterval(function () {
-                    if (window.google && window.google.accounts) { clearInterval(t); resolve(); }
-                }, 200);
-            });
-        }
+function waitForGsi() {
+    return new Promise(function(resolve) {
+        if (window.google && window.google.accounts) { resolve(); return; }
+        var t = setInterval(function() {
+            if (window.google && window.google.accounts) { clearInterval(t); resolve(); }
+        }, 200);
+    });
+}
 
-        function requestGoogleToken(hintEmail) {
-            // 유효한 토큰이 있으면 팝업 없이 바로 사용
-            if (isTokenValid()) return Promise.resolve({ token: _accessToken, email: _googleEmail });
-            return waitForGsi().then(function () {
-                return new Promise(function (resolve, reject) {
-                    function setupCallback() {
-                        _pendingReject = reject;
-                        _tokenClient.callback = function (resp) {
-                            _pendingReject = null;
-                            if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
-                            _accessToken = resp.access_token;
-                            _tokenExpiresAt = Date.now() + (resp.expires_in || 3600) * 1000;
-                            fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                                headers: { Authorization: 'Bearer ' + _accessToken }
-                            }).then(function (r) { return r.json(); }).then(function (info) {
-                                _googleEmail = info.email;
-                                resolve({ token: _accessToken, email: _googleEmail });
-                            }).catch(function () {
-                                resolve({ token: _accessToken, email: _googleEmail });
-                            });
-                        };
-                    }
-                    if (!_tokenClient) {
-                        _tokenClient = google.accounts.oauth2.initTokenClient({
-                            client_id: GOOGLE_CLIENT_ID,
-                            scope: GMAIL_SCOPE,
-                            callback: '',
-                            error_callback: function (err) {
-                                if (!_pendingReject) return;
-                                var type = err && err.type;
-                                var msg = type === 'popup_closed' ? '로그인 창이 닫혔습니다.'
-                                    : type === 'popup_failed_to_open' ? '팝업이 차단되었습니다. 브라우저에서 팝업을 허용해주세요.'
-                                        : (err && (err.message || type)) || '로그인 실패';
-                                var rj = _pendingReject; _pendingReject = null; rj(new Error(msg));
-                            }
-                        });
-                    }
-                    setupCallback();
-                    // 이전에 로그인한 계정이 있으면 동의 화면 없이 해당 계정으로, 없으면 계정 선택
-                    var opts = { prompt: hintEmail ? '' : 'select_account' };
-                    if (hintEmail) opts.hint = hintEmail;
-                    _tokenClient.requestAccessToken(opts);
-                });
-            });
-        }
-
-        function signOutGoogle() {
-            if (_accessToken && window.google && google.accounts && google.accounts.oauth2) {
-                try { google.accounts.oauth2.revoke(_accessToken, function () { }); } catch (err) { }
-            }
-            _accessToken = null; _googleEmail = null; _tokenExpiresAt = 0;
-        }
-
-        function encodeRfc2047(text) {
-            var enc = new TextEncoder();
-            var bytes = enc.encode(text);
-            var bin = '';
-            bytes.forEach(function (b) { bin += String.fromCharCode(b); });
-            return '=?UTF-8?B?' + btoa(bin) + '?=';
-        }
-        function encodeBase64Body(text) {
-            var enc = new TextEncoder();
-            var bytes = enc.encode(text);
-            var bin = '';
-            bytes.forEach(function (b) { bin += String.fromCharCode(b); });
-            return btoa(bin);
-        }
-        function base64UrlEncode(str) {
-            // TextEncoder로 안전하게 UTF-8 바이트 변환 후 base64url 인코딩
-            var enc = new TextEncoder();
-            var bytes = enc.encode(str);
-            var bin = '';
-            bytes.forEach(function (b) { bin += String.fromCharCode(b); });
-            return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-        }
-
-        function sendViaGmailAPI(to, subject, bodyText, pdfBlob, filename) {
-            return pdfBlob.arrayBuffer().then(function (buf) {
-                var bytes = new Uint8Array(buf);
-                var pdfBin = '';
-                bytes.forEach(function (b) { pdfBin += String.fromCharCode(b); });
-                var pdfB64 = btoa(pdfBin);
-                var boundary = 'rf_' + Date.now();
-                var mime = [
-                    'MIME-Version: 1.0',
-                    'To: ' + to,
-                    'Subject: ' + encodeRfc2047(subject),
-                    'Content-Type: multipart/mixed; boundary="' + boundary + '"',
-                    '',
-                    '--' + boundary,
-                    'Content-Type: text/plain; charset=UTF-8',
-                    'Content-Transfer-Encoding: base64',
-                    '',
-                    encodeBase64Body(bodyText),
-                    '',
-                    '--' + boundary,
-                    'Content-Type: application/pdf; name="' + encodeRfc2047(filename) + '"',
-                    'Content-Transfer-Encoding: base64',
-                    'Content-Disposition: attachment; filename="' + encodeRfc2047(filename) + '"',
-                    '',
-                    pdfB64,
-                    '',
-                    '--' + boundary + '--'
-                ].join('\r\n');
-                var raw = base64UrlEncode(mime);
-                return fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-                    method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + _accessToken, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ raw: raw })
-                });
-            }).then(function (res) {
-                if (!res.ok) return res.json().then(function (err) { throw new Error(err.error && err.error.message || '전송 실패'); });
-                return res.json();
-            });
-        }
-
-        var e = React.createElement;
-        var useState = React.useState;
-        var useEffect = React.useEffect;
-        var useRef = React.useRef;
-
-        function svgIcon(children, size, cls) {
-            return e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round', className: cls || '' }, ...children);
-        }
-        var ICONS = {
-            receipt: function (s, c) { return svgIcon([e('path', { key: 0, d: 'M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z' }), e('path', { key: 1, d: 'M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8' }), e('path', { key: 2, d: 'M12 17.5v-11' })], s, c); },
-            calendar: function (s, c) { return svgIcon([e('rect', { key: 0, width: '18', height: '18', x: '3', y: '4', rx: '2', ry: '2' }), e('line', { key: 1, x1: '16', x2: '16', y1: '2', y2: '6' }), e('line', { key: 2, x1: '8', x2: '8', y1: '2', y2: '6' }), e('line', { key: 3, x1: '3', x2: '21', y1: '10', y2: '10' })], s, c); },
-            chevronRight: function (s, c) { return svgIcon([e('path', { key: 0, d: 'm9 18 6-6-6-6' })], s, c); },
-            camera: function (s, c) { return svgIcon([e('path', { key: 0, d: 'M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z' }), e('circle', { key: 1, cx: '12', cy: '13', r: '3' })], s, c); },
-            image: function (s, c) { return svgIcon([e('rect', { key: 0, width: '18', height: '18', x: '3', y: '3', rx: '2', ry: '2' }), e('circle', { key: 1, cx: '9', cy: '9', r: '2' }), e('path', { key: 2, d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' })], s, c); },
-            crop: function (s, c) { return svgIcon([e('path', { key: 0, d: 'M6 2v14a2 2 0 0 0 2 2h14' }), e('path', { key: 1, d: 'M18 22V8a2 2 0 0 0-2-2H2' })], s, c); },
-            trash: function (s, c) { return svgIcon([e('path', { key: 0, d: 'M3 6h18' }), e('path', { key: 1, d: 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6' }), e('path', { key: 2, d: 'M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2' }), e('line', { key: 3, x1: '10', x2: '10', y1: '11', y2: '17' }), e('line', { key: 4, x1: '14', x2: '14', y1: '11', y2: '17' })], s, c); },
-            checkCircle: function (s, c) { return svgIcon([e('path', { key: 0, d: 'M22 11.08V12a10 10 0 1 1-5.93-9.14' }), e('polyline', { key: 1, points: '22 4 12 14.01 9 11.01' })], s, c); },
-            fileDown: function (s, c) { return svgIcon([e('path', { key: 0, d: 'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z' }), e('polyline', { key: 1, points: '14 2 14 8 20 8' }), e('path', { key: 2, d: 'M12 18v-6' }), e('path', { key: 3, d: 'm9 15 3 3 3-3' })], s, c); },
-            send: function (s, c) { return svgIcon([e('path', { key: 0, d: 'm22 2-7 20-4-9-9-4Z' }), e('path', { key: 1, d: 'M22 2 11 13' })], s, c); },
-            check: function (s, c) { return svgIcon([e('polyline', { key: 0, points: '20 6 9 17 4 12' })], s, c); },
-            info: function (s, c) { return svgIcon([e('circle', { key: 0, cx: '12', cy: '12', r: '10' }), e('path', { key: 1, d: 'M12 16v-4' }), e('path', { key: 2, d: 'M12 8h.01' })], s, c); },
-            alertCircle: function (s, c) { return svgIcon([e('circle', { key: 0, cx: '12', cy: '12', r: '10' }), e('line', { key: 1, x1: '12', x2: '12', y1: '8', y2: '12' }), e('line', { key: 2, x1: '12', x2: '12.01', y1: '16', y2: '16' })], s, c); },
-            mail: function (s, c) { return svgIcon([e('rect', { key: 0, width: '20', height: '16', x: '2', y: '4', rx: '2' }), e('path', { key: 1, d: 'm22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7' })], s, c); },
-            google: function (s, c) { return e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: s || 20, height: s || 20, viewBox: '0 0 24 24', className: c || '' }, e('path', { d: 'M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z', fill: '#4285F4' }), e('path', { d: 'M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z', fill: '#34A853' }), e('path', { d: 'M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z', fill: '#FBBC05' }), e('path', { d: 'M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z', fill: '#EA4335' })); },
-            users: function (s, c) { return svgIcon([e('path', { key: 0, d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }), e('circle', { key: 1, cx: '9', cy: '7', r: '4' }), e('path', { key: 2, d: 'M22 21v-2a4 4 0 0 0-3-3.87' }), e('path', { key: 3, d: 'M16 3.13a4 4 0 0 1 0 7.75' })], s, c); },
-            user: function (s, c) { return svgIcon([e('path', { key: 0, d: 'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2' }), e('circle', { key: 1, cx: '12', cy: '7', r: '4' })], s, c); },
-            x: function (s, c) { return svgIcon([e('path', { key: 0, d: 'M18 6 6 18' }), e('path', { key: 1, d: 'm6 6 12 12' })], s, c); },
-            share: function (s, c) { return svgIcon([e('circle', { key: 0, cx: '18', cy: '5', r: '3' }), e('circle', { key: 1, cx: '6', cy: '12', r: '3' }), e('circle', { key: 2, cx: '18', cy: '19', r: '3' }), e('line', { key: 3, x1: '8.59', x2: '15.42', y1: '13.51', y2: '17.49' }), e('line', { key: 4, x1: '15.41', x2: '8.59', y1: '6.51', y2: '10.49' })], s, c); },
-            copy: function (s, c) { return svgIcon([e('rect', { key: 0, width: '14', height: '14', x: '8', y: '8', rx: '2' }), e('path', { key: 1, d: 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2' })], s, c); },
-        };
-        function Icon(name, size, cls) { return ICONS[name] ? ICONS[name](size || 20, cls) : null; }
-
-        function formatDate(date) {
-            var y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0'), d = String(date.getDate()).padStart(2, '0');
-            return y + '. ' + m + '. ' + d + '.';
-        }
-
-        function formatShortDate(date) {
-            var y = String(date.getFullYear()).slice(-2), m = String(date.getMonth() + 1).padStart(2, '0'), d = String(date.getDate()).padStart(2, '0');
-            return y + '.' + m + '.' + d;
-        }
-
-        // 출장 기간 문자열 정리 (파일명 및 제목용: 예 '2026.10.14~2026.10.16' 또는 당일 '2026.10.14')
-        function getTripPeriodString(dr) {
-            var s = (dr || '').replace(/\s+/g, '').replace(/\.~/g, '~');
-            if (s.endsWith('.')) s = s.slice(0, -1);
-            var parts = s.split('~');
-            if (parts.length === 2 && parts[0] === parts[1]) return parts[0];
-            return s || formatShortDate(new Date());
-        }
-
-        function CornerCropper(props) {
-            var src = props.src, onSave = props.onSave, onCancel = props.onCancel;
-            var pts = useState([{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }]);
-            var points = pts[0], setPoints = pts[1];
-            var di = useState(null); var draggingIdx = di[0], setDraggingIdx = di[1];
-            var svgRef = useRef(null), containerRef = useRef(null);
-            var is = useState({ w: 0, h: 0 }); var imgSize = is[0], setImgSize = is[1];
-            useEffect(function () {
-                var img = new Image();
-                img.onload = function () { var c = containerRef.current; if (!c) return; var ratio = Math.min(c.clientWidth / img.naturalWidth, c.clientHeight / img.naturalHeight); setImgSize({ w: img.naturalWidth * ratio, h: img.naturalHeight * ratio }); };
-                img.src = src;
-            }, [src]);
-            function getPos(ev) { var rect = svgRef.current.getBoundingClientRect(), t = ev.touches ? ev.touches[0] : ev; return { x: ((t.clientX - rect.left) / rect.width) * 100, y: ((t.clientY - rect.top) / rect.height) * 100 }; }
-            function handleMove(ev) { if (draggingIdx === null) return; var pos = getPos(ev); setPoints(function (prev) { return prev.map(function (p, i) { return i === draggingIdx ? { x: Math.max(0, Math.min(100, pos.x)), y: Math.max(0, Math.min(100, pos.y)) } : p; }); }); }
-            function generateResult() { var img = new Image(); img.onload = function () { var canvas = document.createElement('canvas'), ctx = canvas.getContext('2d'); var px = points.map(function (p) { return { x: (p.x / 100) * img.naturalWidth, y: (p.y / 100) * img.naturalHeight }; }); var minX = Math.min.apply(null, px.map(function (p) { return p.x; })), maxX = Math.max.apply(null, px.map(function (p) { return p.x; })); var minY = Math.min.apply(null, px.map(function (p) { return p.y; })), maxY = Math.max.apply(null, px.map(function (p) { return p.y; })); canvas.width = maxX - minX; canvas.height = maxY - minY; ctx.beginPath(); ctx.moveTo(px[0].x - minX, px[0].y - minY); ctx.lineTo(px[1].x - minX, px[1].y - minY); ctx.lineTo(px[2].x - minX, px[2].y - minY); ctx.lineTo(px[3].x - minX, px[3].y - minY); ctx.closePath(); ctx.clip(); ctx.drawImage(img, -minX, -minY); onSave(canvas.toDataURL('image/jpeg', 0.9)); }; img.src = src; }
-            var pp = points;
-            var pointsPath = 'M ' + pp[0].x + ',' + pp[0].y + ' L ' + pp[1].x + ',' + pp[1].y + ' L ' + pp[2].x + ',' + pp[2].y + ' L ' + pp[3].x + ',' + pp[3].y + ' Z';
-            var overlayPath = 'M 0,0 L 100,0 L 100,100 L 0,100 Z ' + pointsPath;
-            return e('div', { className: 'fixed inset-0 z-50 bg-slate-900 flex flex-col overflow-hidden animate-fade-in' },
-                e('div', { className: 'p-6 flex justify-between items-center bg-slate-900/50 backdrop-blur-md' },
-                    e('button', { onClick: onCancel, className: 'text-white font-bold px-4 py-2 rounded-xl bg-white/10' }, '취소'),
-                    e('h3', { className: 'text-white font-bold' }, '영역 조정'),
-                    e('button', { onClick: generateResult, className: 'text-white font-bold px-6 py-2 rounded-xl bg-indigo-500' }, '완료')
-                ),
-                e('div', { ref: containerRef, className: 'flex-1 relative flex items-center justify-center p-4' },
-                    e('div', { style: { width: imgSize.w, height: imgSize.h }, className: 'relative' },
-                        e('img', { src: src, className: 'w-full h-full object-contain select-none pointer-events-none' }),
-                        e('svg', {
-                            ref: svgRef, viewBox: '0 0 100 100', preserveAspectRatio: 'none', className: 'absolute inset-0 w-full h-full touch-none',
-                            onMouseMove: handleMove, onTouchMove: handleMove,
-                            onMouseUp: function () { setDraggingIdx(null); }, onTouchEnd: function () { setDraggingIdx(null); }, onMouseLeave: function () { setDraggingIdx(null); }
-                        },
-                            e('path', { d: overlayPath, className: 'crop-overlay' }),
-                            e('path', { d: pointsPath, className: 'crop-line', fill: 'none' }),
-                            ...points.map(function (p, i) { return e('circle', { key: i, cx: p.x, cy: p.y, r: '3', className: 'handle', onMouseDown: function () { setDraggingIdx(i); }, onTouchStart: function () { setDraggingIdx(i); } }); })
-                        )
-                    )
-                ),
-                e('div', { className: 'p-8 text-center bg-slate-900' },
-                    e('p', { className: 'text-white/60 text-sm font-medium flex items-center justify-center gap-2' }, Icon('info', 16), ' 각 모서리를 드래그하여 영수증에 맞추세요')
-                )
-            );
-        }
-
-        function App() {
-            var s1 = useState(1); var step = s1[0], setStep = s1[1];
-            var s2 = useState(formatDate(new Date()) + ' ~ ' + formatDate(new Date())); var dateRange = s2[0], setDateRange = s2[1];
-            var s3 = useState([]); var images = s3[0], setImages = s3[1];
-            var s4 = useState([]); var previewImages = s4[0], setPreviewImages = s4[1];
-            var s5 = useState(false); var isProcessing = s5[0], setIsProcessing = s5[1];
-            var s6 = useState(false); var isGenerating = s6[0], setIsGenerating = s6[1];
-            var s7 = useState(false); var isSending = s7[0], setIsSending = s7[1];
-            var s8 = useState(null); var notification = s8[0], setNotification = s8[1];
-            var s9 = useState(null); var croppingImg = s9[0], setCroppingImg = s9[1];
-            var s10 = useState(''); var email = s10[0], setEmail = s10[1];
-            var s11 = useState(true); var saveEmail = s11[0], setSaveEmail = s11[1];
-            var s12 = useState(null); var googleEmail = s12[0], setGoogleEmail = s12[1];
-            var s13 = useState(false); var sentOk = s13[0], setSentOk = s13[1];
-            var s14 = useState(''); var senderName = s14[0], setSenderName = s14[1];
-            var dateInputRef = useRef(null);
-            var pageJpegsRef = useRef([]); // 미리보기 때 만든 페이지 이미지를 PDF 생성에 재사용
-
-            useEffect(function () {
-                function handlePop(ev) { setStep((ev.state && ev.state.step) || 1); setCroppingImg(null); setSentOk(false); }
-                window.addEventListener('popstate', handlePop);
-                if (!window.history.state) window.history.replaceState({ step: 1 }, '');
-                var saved = localStorage.getItem('receipt_flow_email'); if (saved) setEmail(saved);
-                var savedG = localStorage.getItem('receipt_flow_google_email'); if (savedG) setGoogleEmail(savedG);
-                var savedN = localStorage.getItem('receipt_flow_name'); if (savedN) setSenderName(savedN);
-                var to = new URLSearchParams(window.location.search).get('to');
-                if (to) {
-                    setEmail(to); localStorage.setItem('receipt_flow_email', to);
-                    window.history.replaceState(window.history.state || { step: 1 }, '', window.location.pathname);
-                    setTimeout(function () { showMessage('수신자 이메일(' + to + ')이 설정되었습니다.', 'success'); }, 400);
-                }
-                return function () { window.removeEventListener('popstate', handlePop); };
-            }, []);
-
-            useEffect(function () {
-                if (step === 1 && dateInputRef.current) {
-                    flatpickr(dateInputRef.current, {
-                        mode: 'range',
-                        locale: 'ko',
-                        dateFormat: 'Y. m. d.',
-                        defaultDate: [new Date(), new Date()],
-                        onChange: function (dates) {
-                            if (dates.length === 2) setDateRange(formatDate(dates[0]) + ' ~ ' + formatDate(dates[1]));
-                        },
-                        onClose: function (dates) {
-                            if (dates.length === 1) setDateRange(formatDate(dates[0]) + ' ~ ' + formatDate(dates[0]));
-                            else if (dates.length === 2) setDateRange(formatDate(dates[0]) + ' ~ ' + formatDate(dates[1]));
-                        }
+function requestGoogleToken(hintEmail) {
+    // 유효한 토큰이 있으면 팝업 없이 바로 사용
+    if (isTokenValid()) return Promise.resolve({ token: _accessToken, email: _googleEmail });
+    return waitForGsi().then(function() {
+        return new Promise(function(resolve, reject) {
+            function setupCallback() {
+                _pendingReject = reject;
+                _tokenClient.callback = function(resp) {
+                    _pendingReject = null;
+                    if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
+                    _accessToken = resp.access_token;
+                    _tokenExpiresAt = Date.now() + (resp.expires_in || 3600) * 1000;
+                    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                        headers: { Authorization: 'Bearer ' + _accessToken }
+                    }).then(function(r) { return r.json(); }).then(function(info) {
+                        _googleEmail = info.email;
+                        resolve({ token: _accessToken, email: _googleEmail });
+                    }).catch(function() {
+                        resolve({ token: _accessToken, email: _googleEmail });
                     });
-                }
-                if (step === 3) generatePreview();
-            }, [step]);
-
-            function navigateTo(next) { window.history.pushState({ step: next }, ''); setStep(next); setSentOk(false); }
-            function showMessage(text, type) { setNotification({ text: text, type: type || 'info' }); setTimeout(function () { setNotification(null); }, 4000); }
-
-            function handleFileUpload(ev) {
-                var files = Array.from(ev.target.files); if (!files.length) return;
-                setIsProcessing(true);
-                Promise.all(files.map(function (file) { return new Promise(function (res) { var r = new FileReader(); r.onload = function (e2) { res({ id: Math.random().toString(36).substr(2, 9), src: e2.target.result }); }; r.readAsDataURL(file); }); }))
-                    .then(function (results) { setImages(function (prev) { return [...prev, ...results]; }); setIsProcessing(false); });
+                };
             }
-            function removeImage(id) { setImages(function (prev) { return prev.filter(function (img) { return img.id !== id; }); }); }
-
-            function renderPage(pageNum, perPage, pw, ph, pad, gap, gh) {
-                var pc = document.createElement('div');
-                pc.style.cssText = 'width:' + pw + 'px;height:' + ph + 'px;background:white;padding:' + pad + 'px;position:fixed;top:0;left:0;z-index:-9999;font-family:sans-serif;display:flex;flex-direction:column;box-sizing:border-box;';
-                var hdr = document.createElement('div');
-                hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px;padding-bottom:15px;border-bottom:3px solid #4F46E5;flex-shrink:0;';
-                hdr.innerHTML = '<div style="font-size:32px;font-weight:bold;color:#1F2937;">출장 영수증 정산서</div><div style="font-size:14px;color:#6B7280;text-align:right;">' + (senderName ? '제출자 <b style="color:#1F2937;">' + escapeHtml(senderName.trim()) + '</b><br>' : '') + '출장 기간<br><b style="color:#4F46E5;">' + dateRange + '</b></div>';
-                pc.appendChild(hdr);
-                var grid = document.createElement('div');
-                grid.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:' + gap + 'px;width:100%;height:' + gh + 'px;';
-                var start = pageNum * perPage, end = Math.min(start + perPage, images.length), loads = [];
-                for (var i = start; i < end; i++) {
-                    var wrap = document.createElement('div');
-                    wrap.style.cssText = 'border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;background:#F9FAFB;display:flex;align-items:center;justify-content:center;';
-                    var img = document.createElement('img');
-                    (function (imgEl, src) {
-                        loads.push(new Promise(function (res) { imgEl.src = src; if (imgEl.decode) imgEl.decode().then(res).catch(function () { imgEl.onload = res; imgEl.onerror = res; }); else { if (imgEl.complete) res(); else { imgEl.onload = res; imgEl.onerror = res; } } }));
-                        imgEl.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;display:block;';
-                        wrap.appendChild(imgEl); grid.appendChild(wrap);
-                    })(img, images[i].src);
-                }
-                pc.appendChild(grid); document.body.appendChild(pc);
-                return (loads.length ? Promise.all(loads) : Promise.resolve())
-                    .then(function () { return new Promise(function (res) { setTimeout(function () { requestAnimationFrame(res); }, 500); }); })
-                    .then(function () { return html2canvas(pc, { scale: 2, useCORS: true, logging: false, allowTaint: true, backgroundColor: '#ffffff' }); })
-                    .then(function (canvas) { document.body.removeChild(pc); return canvas; });
-            }
-
-            function buildPdfFromPages(pages) {
-                var jsPDF = window.jspdf.jsPDF;
-                var doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
-                pages.forEach(function (src, i) { if (i > 0) doc.addPage(); doc.addImage(src, 'JPEG', 0, 0, 210, 297); });
-                return doc.output('blob');
-            }
-
-            function buildPdfBlob() {
-                if (pageJpegsRef.current.length) return Promise.resolve(buildPdfFromPages(pageJpegsRef.current));
-                var perPage = 4, total = Math.ceil(images.length / perPage), pages = [];
-                var chain = Promise.resolve();
-                for (var p = 0; p < total; p++) {
-                    (function (pageNum) {
-                        chain = chain.then(function () {
-                            return renderPage(pageNum, perPage, 794, 1123, 40, 20, 943).then(function (canvas) {
-                                pages.push(canvas.toDataURL('image/jpeg', 0.75));
-                            });
-                        });
-                    })(p);
-                }
-                return chain.then(function () { return buildPdfFromPages(pages); });
-            }
-
-            function generatePreview() {
-                setIsGenerating(true);
-                pageJpegsRef.current = [];
-                var perPage = 4, total = Math.ceil(images.length / perPage) || 1, arr = [], jpgs = [];
-                var chain = Promise.resolve();
-                for (var p = 0; p < total; p++) {
-                    (function (pageNum) {
-                        chain = chain.then(function () {
-                            return renderPage(pageNum, perPage, 794, 1123, 40, 20, 943).then(function (canvas) {
-                                arr.push(canvas.toDataURL('image/png'));
-                                jpgs.push(canvas.toDataURL('image/jpeg', 0.75));
-                            });
-                        });
-                    })(p);
-                }
-                chain.then(function () { pageJpegsRef.current = jpgs; setPreviewImages(arr); setIsGenerating(false); });
-            }
-
-            // 파일명: 출장기간 기준 (예: '2026.10.14~2026.10.16.pdf' 또는 '홍길동_2026.10.14~2026.10.16.pdf')
-            function makeFilename() {
-                var period = getTripPeriodString(dateRange);
-                var n = senderName.trim();
-                return (n ? n + '_' : '') + period + '.pdf';
-            }
-            function makeSubject() {
-                var period = getTripPeriodString(dateRange);
-                var n = senderName.trim();
-                return '[출장 증빙] ' + (n ? n + ' / ' : '') + period + ' 영수증 정산서 제출';
-            }
-            function makeBody() {
-                var n = senderName.trim();
-                return '안녕하세요' + (n ? ', ' + n + '입니다' : '') + '.\n\n' + dateRange + ' 기간의 출장비 사용 내역 증빙 서류를 첨부 파일로 제출합니다.\n\n감사합니다.';
-            }
-
-            function triggerDownload(blob, filename) {
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement('a'); a.href = url; a.download = filename;
-                document.body.appendChild(a); a.click();
-                setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-            }
-
-            function downloadPDF() {
-                setIsGenerating(true);
-                buildPdfBlob().then(function (blob) {
-                    var fname = makeFilename();
-                    triggerDownload(blob, fname);
-                    setIsGenerating(false);
-                    showMessage(fname + ' 저장이 완료되었습니다.', 'success');
-                });
-            }
-
-            function handleGoogleSignOut() {
-                signOutGoogle(); setGoogleEmail(null); localStorage.removeItem('receipt_flow_google_email');
-                showMessage('Google 계정에서 로그아웃했어요.', 'info');
-            }
-
-            function handleAutoSend() {
-                var trimmed = email.trim();
-                if (!trimmed) {
-                    showMessage('수신자 사외 이메일 주소를 입력해주세요. (필수)', 'error');
-                    return;
-                }
-                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-                    showMessage('올바른 이메일 형식(예: user@company.com)을 입력해주세요.', 'error');
-                    return;
-                }
-                setIsSending(true);
-                requestGoogleToken(googleEmail).then(function (result) {
-                    if (result.email) { setGoogleEmail(result.email); localStorage.setItem('receipt_flow_google_email', result.email); }
-                    showMessage('사외 메일(' + trimmed + ')로 정산서 발송 중...', 'info');
-                    return buildPdfBlob();
-                }).then(function (blob) {
-                    return sendViaGmailAPI(trimmed, makeSubject(), makeBody(), blob, makeFilename());
-                }).then(function () {
-                    setSentOk(true); setIsSending(false);
-                    showMessage('전송 완료! ' + trimmed + '로 PDF가 발송되었습니다.', 'success');
-                }).catch(function (err) {
-                    console.error(err); setIsSending(false);
-                    var msg = (err && err.message) || '';
-                    if (/access_denied|denied|403|insufficient/i.test(msg)) {
-                        msg = 'Google 계정 승인이 필요합니다. 팝업에서 [고급] → [smr-jungsan(으)로 이동]을 눌러주세요.';
+            if (!_tokenClient) {
+                _tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: GOOGLE_CLIENT_ID,
+                    scope: GMAIL_SCOPE,
+                    callback: '',
+                    error_callback: function(err) {
+                        if (!_pendingReject) return;
+                        var type = err && err.type;
+                        var msg = type === 'popup_closed' ? '로그인 창이 닫혔습니다.'
+                            : type === 'popup_failed_to_open' ? '팝업이 차단되었습니다. 브라우저에서 팝업을 허용해주세요.'
+                            : (err && (err.message || type)) || '로그인 실패';
+                        var rj = _pendingReject; _pendingReject = null; rj(new Error(msg));
                     }
-                    showMessage('전송 실패: ' + msg, 'error');
                 });
             }
-            var step1El = step === 1 && e('div', { className: 'text-center py-4 animate-fade-in' },
-                e('div', { className: 'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold mb-5 shadow-sm border border-emerald-100' },
-                    Icon('checkCircle', 14, 'text-emerald-500'), '초대 · 로그인 없이 누구나 바로 사용'
-                ),
-                e('div', { className: 'flex justify-center mb-4' },
-                    e('div', { className: 'p-4 rounded-3xl bg-white shadow-sm text-indigo-500' }, Icon('receipt', 40))
-                ),
-                e('h1', { className: 'text-4xl sm:text-5xl font-black mb-2 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-pink-500' }, '출장증빙'),
-                e('p', { className: 'text-slate-500 mb-8 font-medium text-sm' }, '웹앱 주소로 접속해 영수증을 올리면 출장 정산서 PDF가 완성됩니다.'),
-                e('div', { className: 'bg-white rounded-3xl shadow-sm p-2 flex flex-col border border-indigo-50 gap-2 mb-4 text-left' },
-                    e('label', { className: 'text-xs font-bold text-indigo-400 px-4 pt-2 uppercase tracking-tighter' }, '출장 기간 설정'),
-                    e('div', { className: 'flex items-center pb-2' },
-                        e('div', { className: 'pl-4 text-indigo-400' }, Icon('calendar', 20)),
-                        e('input', { ref: dateInputRef, className: 'flex-grow bg-transparent outline-none px-4 text-slate-700 font-bold text-lg text-center cursor-pointer', value: dateRange, readOnly: true, onChange: function () { } })
-                    )
-                ),
-                e('div', { className: 'bg-white rounded-3xl shadow-sm p-2 flex flex-col border border-indigo-50 gap-2 mb-6 text-left' },
-                    e('label', { htmlFor: 'sender-name', className: 'text-xs font-bold text-indigo-400 px-4 pt-2 uppercase tracking-tighter' }, '제출자 이름 (선택)'),
-                    e('div', { className: 'flex items-center pb-2' },
-                        e('div', { className: 'pl-4 text-indigo-400' }, Icon('user', 20)),
-                        e('input', { id: 'sender-name', placeholder: '예: 홍길동 (입력 시 파일명 및 정산서에 표시)', className: 'flex-grow bg-transparent outline-none px-4 text-slate-700 font-bold text-lg text-center placeholder:text-sm placeholder:font-normal placeholder:text-slate-300', value: senderName, onChange: function (ev) { var v = ev.target.value; setSenderName(v); localStorage.setItem('receipt_flow_name', v); } })
-                    )
-                ),
-                e('button', { onClick: function () { navigateTo(2); }, className: 'w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-[24px] py-5 font-bold active:scale-95 shadow-xl shadow-indigo-100 transition-all flex items-center justify-center gap-2 text-base' }, '영수증 업로드 시작 ', Icon('chevronRight', 20))
-            );
+            setupCallback();
+            // 이전에 로그인한 계정이 있으면 동의 화면 없이 해당 계정으로, 없으면 계정 선택
+            var opts = { prompt: hintEmail ? '' : 'select_account' };
+            if (hintEmail) opts.hint = hintEmail;
+            _tokenClient.requestAccessToken(opts);
+        });
+    });
+}
 
-            var step2El = step === 2 && e('div', { className: 'animate-slide-up' },
-                e('div', { className: 'flex justify-between items-center mb-6' },
-                    e('h2', { className: 'text-2xl font-bold text-slate-800 flex items-center gap-2' }, '영수증 추가 ', e('span', { className: 'text-indigo-600 bg-indigo-50 px-3 py-0.5 rounded-full text-lg' }, images.length)),
-                    e('button', { onClick: function () { window.history.back(); }, className: 'text-slate-400 text-sm font-semibold hover:text-indigo-500' }, '이전')
-                ),
-                e('div', { className: 'grid grid-cols-2 gap-4 mb-6' },
-                    e('label', { className: 'flex flex-col items-center justify-center h-36 border-2 border-dashed border-indigo-100 rounded-[32px] bg-white/50 cursor-pointer hover:bg-indigo-50/50 transition-all active:scale-95 group' },
-                        e('div', { className: 'w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform text-indigo-600' }, Icon('camera')),
-                        e('span', { className: 'text-indigo-600 font-bold text-sm' }, '카메라'),
-                        e('input', { type: 'file', multiple: true, accept: 'image/*', capture: 'environment', className: 'hidden', onChange: handleFileUpload })
-                    ),
-                    e('label', { className: 'flex flex-col items-center justify-center h-36 border-2 border-dashed border-pink-100 rounded-[32px] bg-white/50 cursor-pointer hover:bg-pink-50/50 transition-all active:scale-95 group' },
-                        e('div', { className: 'w-12 h-12 rounded-2xl bg-pink-100 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform text-pink-600' }, Icon('image')),
-                        e('span', { className: 'text-pink-600 font-bold text-sm' }, '갤러리'),
-                        e('input', { type: 'file', multiple: true, accept: 'image/*', className: 'hidden', onChange: handleFileUpload })
-                    )
-                ),
-                e('div', { className: 'grid grid-cols-3 gap-3 mb-8 max-h-72 overflow-y-auto p-1 custom-scrollbar' },
-                    ...images.map(function (img) {
-                        return e('div', { key: img.id, className: 'relative aspect-square rounded-2xl overflow-hidden shadow-md group border-2 border-white cursor-pointer', onClick: function () { setCroppingImg(img); } },
-                            e('img', { src: img.src, className: 'w-full h-full object-cover' }),
-                            e('div', { className: 'absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white' }, Icon('crop', 24), e('span', { className: 'text-[10px] font-bold mt-1' }, '영역 조정')),
-                            e('button', { onClick: function (ev) { ev.stopPropagation(); removeImage(img.id); }, className: 'absolute top-1 right-1 bg-rose-500 text-white rounded-full p-1.5 shadow-lg active:scale-90 z-10' }, Icon('trash', 14))
-                        );
-                    }),
-                    isProcessing && e('div', { className: 'aspect-square rounded-2xl bg-slate-100 flex items-center justify-center animate-pulse border-2 border-dashed border-slate-200' }, e('div', { className: 'w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin' }))
-                ),
-                e('button', { disabled: images.length === 0 || isProcessing, onClick: function () { navigateTo(3); }, className: 'w-full py-5 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white rounded-[24px] font-bold shadow-xl active:scale-95 disabled:opacity-30 transition-all flex items-center justify-center gap-2 text-base' }, '정산서 미리보기 ', Icon('checkCircle'))
-            );
+function signOutGoogle() {
+    if (_accessToken && window.google && google.accounts && google.accounts.oauth2) {
+        try { google.accounts.oauth2.revoke(_accessToken, function() {}); } catch (err) {}
+    }
+    _accessToken = null; _googleEmail = null; _tokenExpiresAt = 0;
+}
 
-            var step3El = step === 3 && e('div', { className: 'animate-fade-in flex flex-col' },
-                e('div', { className: 'flex items-center justify-between mb-4' },
-                    e('h2', { className: 'text-2xl font-black text-slate-800' }, '최종 확인 및 발송'),
-                    e('button', { onClick: function () { window.history.back(); }, className: 'text-indigo-600 font-bold text-sm bg-indigo-50 px-4 py-2 rounded-full active:scale-95 transition-all' }, '이전')
-                ),
-                e('div', { className: 'overflow-y-auto custom-scrollbar pb-2' },
-                    e('div', { className: 'w-full bg-slate-200 rounded-[32px] mb-5 border-4 border-white overflow-hidden shadow-inner relative flex flex-col items-center min-h-[260px]' },
-                        isGenerating && previewImages.length === 0
-                            ? e('div', { className: 'absolute inset-0 flex flex-col items-center justify-center gap-4' }, e('div', { className: 'w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin' }), e('p', { className: 'text-indigo-600 font-bold' }, '미리보기 생성 중...'))
-                            : previewImages.length > 0 && e('div', { className: 'w-full overflow-y-auto p-2 space-y-2 custom-scrollbar', style: { maxHeight: '260px' } },
-                                ...previewImages.map(function (src, i) { return e('img', { key: i, src: src, className: 'w-full h-auto object-contain rounded-[16px] shadow-sm bg-white' }); }))
-                    ),
-                    e('div', { className: 'bg-white rounded-[28px] p-5 mb-4 border border-indigo-100 shadow-md shadow-indigo-50' },
-                        e('div', { className: 'flex items-center justify-between mb-2 px-1' },
-                            e('label', { className: 'text-xs font-bold text-slate-700 flex items-center gap-1.5' },
-                                Icon('mail', 16, 'text-indigo-600'),
-                                '수신자 사외 이메일',
-                                e('span', { className: 'text-rose-500 font-black bg-rose-50 px-1.5 py-0.5 rounded text-[10px] border border-rose-100' }, '필수')
-                            ),
-                            e('span', { className: 'text-[11px] text-indigo-600 font-bold' }, '사내 인트라넷 반입용')
-                        ),
-                        e('div', { className: 'flex items-center gap-2 mb-2 bg-slate-50 rounded-2xl px-3.5 py-3 border border-slate-200 focus-within:border-indigo-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100 transition-all' },
-                            e('input', {
-                                type: 'email',
-                                placeholder: '예: employee@naver.com (본인 사외메일 주소)',
-                                className: 'flex-grow bg-transparent outline-none text-slate-800 font-bold text-base placeholder:font-normal placeholder:text-slate-400',
-                                value: email,
-                                onChange: function (ev) {
-                                    var v = ev.target.value;
-                                    setEmail(v);
-                                    if (saveEmail) localStorage.setItem('receipt_flow_email', v);
-                                }
-                            })
-                        ),
-                        e('p', { className: 'text-[11px] text-slate-500 mb-3 px-1 leading-relaxed' },
-                            '이곳에 입력하신 사외 메일로 정산서 PDF가 전송됩니다. 메일 수신 후 회사 내부망으로 반입하여 사용하세요.'
-                        ),
-                        e('label', { className: 'flex items-center gap-2 px-1 cursor-pointer' },
-                            e('div', { className: 'w-4 h-4 rounded flex items-center justify-center transition-colors ' + (saveEmail ? 'bg-indigo-600' : 'bg-slate-200') }, saveEmail && Icon('check', 12, 'text-white')),
-                            e('input', { type: 'checkbox', checked: saveEmail, onChange: function (ev) { var c = ev.target.checked; setSaveEmail(c); if (c) localStorage.setItem('receipt_flow_email', email); else localStorage.removeItem('receipt_flow_email'); }, className: 'hidden' }),
-                            e('span', { className: 'text-xs text-slate-600 font-semibold' }, '이 브라우저에 내 사외 이메일 주소 기억하기')
-                        )
-                    ),
-                    sentOk
-                        ? e('div', { className: 'w-full py-6 bg-emerald-50 border-2 border-emerald-200 rounded-[28px] flex flex-col items-center justify-center gap-2.5 animate-slide-up p-4' },
-                            e('div', { className: 'flex items-center gap-2 text-emerald-600 font-black text-xl' }, Icon('checkCircle', 28, 'text-emerald-500'), '전송 완료!'),
-                            e('p', { className: 'text-sm text-emerald-700 text-center font-bold break-all' }, email + ' 주소로\n정산서 PDF 발송이 완료되었습니다.'),
-                            e('p', { className: 'text-xs text-emerald-600 text-center' }, '사외 메일함을 확인하신 후 사내 인트라넷망으로 가져오시면 됩니다.'),
-                            e('button', { onClick: function () { setSentOk(false); }, className: 'mt-3 text-xs font-bold text-emerald-700 bg-white border border-emerald-200 px-5 py-2.5 rounded-full hover:bg-emerald-100 active:scale-95 transition-all shadow-sm' }, '다시 전송하기')
-                        )
-                        : e('div', { className: 'flex flex-col gap-2.5' },
-                            e('button', {
-                                id: 'mail-send',
-                                onClick: handleAutoSend,
-                                disabled: isSending || isGenerating,
-                                className: 'w-full py-4.5 bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-700 hover:from-indigo-700 hover:to-violet-800 text-white rounded-[22px] font-black active:scale-95 transition-all flex items-center justify-center gap-2.5 shadow-xl shadow-indigo-200 disabled:opacity-50 text-base'
-                            },
-                                isSending
-                                    ? [e('div', { key: 0, className: 'w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin' }), '사외 메일로 전송 중...']
-                                    : [Icon('send', 20), '사외 이메일로 정산서 전송']
-                            ),
-                            e('div', { className: 'bg-indigo-50/70 rounded-xl px-3 py-1.5 text-center -mt-1 mb-1' },
-                                e('span', { className: 'text-[11px] font-bold text-indigo-700 font-mono' }, '첨부 파일명: ' + makeFilename())
-                            ),
-                            e('button', {
-                                id: 'download-pdf',
-                                onClick: downloadPDF,
-                                disabled: isGenerating || isSending,
-                                className: 'w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-[20px] font-bold active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm'
-                            },
-                                Icon('fileDown', 18), '정산서 PDF 직접 다운로드'
-                            ),
-                            e('div', { className: 'mt-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-slate-500 space-y-1.5' },
-                                e('div', { className: 'flex items-center gap-2 font-medium' },
-                                    e('div', { className: 'w-2 h-2 rounded-full flex-shrink-0 ' + (googleEmail ? 'bg-emerald-400' : 'bg-slate-300') }),
-                                    e('span', { className: 'flex-grow truncate text-slate-600' }, googleEmail ? '발송 계정(Google): ' + googleEmail : '발송 계정(Google): 전송 시 1회 로그인 필요'),
-                                    googleEmail && e('button', { onClick: handleGoogleSignOut, className: 'text-[11px] font-bold text-slate-400 hover:text-rose-500 underline' }, '계정 변경')
-                                ),
-                                e('div', { className: 'text-[11px] text-slate-400 leading-relaxed border-t border-slate-200/60 pt-1.5' },
-                                    '💡 ',
-                                    e('strong', { className: 'text-slate-600' }, 'Google 로그인 안내:'),
-                                    ' 로그인 창에 ',
-                                    e('span', { className: 'text-amber-600 font-bold' }, '\'확인하지 않은 앱\''),
-                                    ' 화면이 나타나면 좌측 하단의 ',
-                                    e('span', { className: 'font-bold text-slate-700' }, '[고급]'),
-                                    ' 클릭 후 ',
-                                    e('span', { className: 'font-bold text-slate-700' }, '[smr-jungsan(으)로 이동(안전하지 않음)]'),
-                                    '을 누르시면 정상 전송됩니다.'
-                                )
-                            )
-                        )
+function encodeRfc2047(text) {
+    var enc = new TextEncoder();
+    var bytes = enc.encode(text);
+    var bin = '';
+    bytes.forEach(function(b) { bin += String.fromCharCode(b); });
+    return '=?UTF-8?B?' + btoa(bin) + '?=';
+}
+function encodeBase64Body(text) {
+    var enc = new TextEncoder();
+    var bytes = enc.encode(text);
+    var bin = '';
+    bytes.forEach(function(b) { bin += String.fromCharCode(b); });
+    return btoa(bin);
+}
+function base64UrlEncode(str) {
+    // TextEncoder로 안전하게 UTF-8 바이트 변환 후 base64url 인코딩
+    var enc = new TextEncoder();
+    var bytes = enc.encode(str);
+    var bin = '';
+    bytes.forEach(function(b) { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function sendViaGmailAPI(to, subject, bodyText, pdfBlob, filename) {
+    return pdfBlob.arrayBuffer().then(function(buf) {
+        var bytes = new Uint8Array(buf);
+        var pdfBin = '';
+        bytes.forEach(function(b) { pdfBin += String.fromCharCode(b); });
+        var pdfB64 = btoa(pdfBin);
+        var boundary = 'rf_' + Date.now();
+        var mime = [
+            'MIME-Version: 1.0',
+            'To: ' + to,
+            'Subject: ' + encodeRfc2047(subject),
+            'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+            '',
+            '--' + boundary,
+            'Content-Type: text/plain; charset=UTF-8',
+            'Content-Transfer-Encoding: base64',
+            '',
+            encodeBase64Body(bodyText),
+            '',
+            '--' + boundary,
+            'Content-Type: application/pdf; name="' + encodeRfc2047(filename) + '"',
+            'Content-Transfer-Encoding: base64',
+            'Content-Disposition: attachment; filename="' + encodeRfc2047(filename) + '"',
+            '',
+            pdfB64,
+            '',
+            '--' + boundary + '--'
+        ].join('\r\n');
+        var raw = base64UrlEncode(mime);
+        return fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + _accessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ raw: raw })
+        });
+    }).then(function(res) {
+        if (!res.ok) return res.json().then(function(err) { throw new Error(err.error && err.error.message || '전송 실패'); });
+        return res.json();
+    });
+}
+
+var e = React.createElement;
+var useState = React.useState;
+var useEffect = React.useEffect;
+var useRef = React.useRef;
+
+function svgIcon(children, size, cls) {
+    return e('svg', { xmlns:'http://www.w3.org/2000/svg', width:size, height:size, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:'2', strokeLinecap:'round', strokeLinejoin:'round', className:cls||'' }, ...children);
+}
+var ICONS = {
+    receipt:      function(s,c){return svgIcon([e('path',{key:0,d:'M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z'}),e('path',{key:1,d:'M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8'}),e('path',{key:2,d:'M12 17.5v-11'})],s,c);},
+    calendar:     function(s,c){return svgIcon([e('rect',{key:0,width:'18',height:'18',x:'3',y:'4',rx:'2',ry:'2'}),e('line',{key:1,x1:'16',x2:'16',y1:'2',y2:'6'}),e('line',{key:2,x1:'8',x2:'8',y1:'2',y2:'6'}),e('line',{key:3,x1:'3',x2:'21',y1:'10',y2:'10'})],s,c);},
+    chevronRight: function(s,c){return svgIcon([e('path',{key:0,d:'m9 18 6-6-6-6'})],s,c);},
+    camera:       function(s,c){return svgIcon([e('path',{key:0,d:'M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z'}),e('circle',{key:1,cx:'12',cy:'13',r:'3'})],s,c);},
+    image:        function(s,c){return svgIcon([e('rect',{key:0,width:'18',height:'18',x:'3',y:'3',rx:'2',ry:'2'}),e('circle',{key:1,cx:'9',cy:'9',r:'2'}),e('path',{key:2,d:'m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'})],s,c);},
+    crop:         function(s,c){return svgIcon([e('path',{key:0,d:'M6 2v14a2 2 0 0 0 2 2h14'}),e('path',{key:1,d:'M18 22V8a2 2 0 0 0-2-2H2'})],s,c);},
+    trash:        function(s,c){return svgIcon([e('path',{key:0,d:'M3 6h18'}),e('path',{key:1,d:'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6'}),e('path',{key:2,d:'M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2'}),e('line',{key:3,x1:'10',x2:'10',y1:'11',y2:'17'}),e('line',{key:4,x1:'14',x2:'14',y1:'11',y2:'17'})],s,c);},
+    checkCircle:  function(s,c){return svgIcon([e('path',{key:0,d:'M22 11.08V12a10 10 0 1 1-5.93-9.14'}),e('polyline',{key:1,points:'22 4 12 14.01 9 11.01'})],s,c);},
+    fileDown:     function(s,c){return svgIcon([e('path',{key:0,d:'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'}),e('polyline',{key:1,points:'14 2 14 8 20 8'}),e('path',{key:2,d:'M12 18v-6'}),e('path',{key:3,d:'m9 15 3 3 3-3'})],s,c);},
+    send:         function(s,c){return svgIcon([e('path',{key:0,d:'m22 2-7 20-4-9-9-4Z'}),e('path',{key:1,d:'M22 2 11 13'})],s,c);},
+    check:        function(s,c){return svgIcon([e('polyline',{key:0,points:'20 6 9 17 4 12'})],s,c);},
+    info:         function(s,c){return svgIcon([e('circle',{key:0,cx:'12',cy:'12',r:'10'}),e('path',{key:1,d:'M12 16v-4'}),e('path',{key:2,d:'M12 8h.01'})],s,c);},
+    alertCircle:  function(s,c){return svgIcon([e('circle',{key:0,cx:'12',cy:'12',r:'10'}),e('line',{key:1,x1:'12',x2:'12',y1:'8',y2:'12'}),e('line',{key:2,x1:'12',x2:'12.01',y1:'16',y2:'16'})],s,c);},
+    mail:         function(s,c){return svgIcon([e('rect',{key:0,width:'20',height:'16',x:'2',y:'4',rx:'2'}),e('path',{key:1,d:'m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7'})],s,c);},
+    google: function(s,c){return e('svg',{xmlns:'http://www.w3.org/2000/svg',width:s||20,height:s||20,viewBox:'0 0 24 24',className:c||''},e('path',{d:'M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z',fill:'#4285F4'}),e('path',{d:'M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z',fill:'#34A853'}),e('path',{d:'M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z',fill:'#FBBC05'}),e('path',{d:'M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z',fill:'#EA4335'}));},
+    users:        function(s,c){return svgIcon([e('path',{key:0,d:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'}),e('circle',{key:1,cx:'9',cy:'7',r:'4'}),e('path',{key:2,d:'M22 21v-2a4 4 0 0 0-3-3.87'}),e('path',{key:3,d:'M16 3.13a4 4 0 0 1 0 7.75'})],s,c);},
+    user:         function(s,c){return svgIcon([e('path',{key:0,d:'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2'}),e('circle',{key:1,cx:'12',cy:'7',r:'4'})],s,c);},
+    x:            function(s,c){return svgIcon([e('path',{key:0,d:'M18 6 6 18'}),e('path',{key:1,d:'m6 6 12 12'})],s,c);},
+    share:        function(s,c){return svgIcon([e('circle',{key:0,cx:'18',cy:'5',r:'3'}),e('circle',{key:1,cx:'6',cy:'12',r:'3'}),e('circle',{key:2,cx:'18',cy:'19',r:'3'}),e('line',{key:3,x1:'8.59',x2:'15.42',y1:'13.51',y2:'17.49'}),e('line',{key:4,x1:'15.41',x2:'8.59',y1:'6.51',y2:'10.49'})],s,c);},
+    copy:         function(s,c){return svgIcon([e('rect',{key:0,width:'14',height:'14',x:'8',y:'8',rx:'2'}),e('path',{key:1,d:'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'})],s,c);},
+};
+function Icon(name, size, cls) { return ICONS[name] ? ICONS[name](size||20, cls) : null; }
+
+function formatDate(date) {
+    var y=date.getFullYear(), m=String(date.getMonth()+1).padStart(2,'0'), d=String(date.getDate()).padStart(2,'0');
+    return y+'. '+m+'. '+d+'.';
+}
+
+function formatShortDate(date) {
+    var y=String(date.getFullYear()).slice(-2), m=String(date.getMonth()+1).padStart(2,'0'), d=String(date.getDate()).padStart(2,'0');
+    return y+'.'+m+'.'+d;
+}
+
+// 출장 기간 문자열 정리 (파일명 및 제목용: 예 '2026.10.14~2026.10.16' 또는 당일 '2026.10.14')
+function getTripPeriodString(dr) {
+    var s = (dr || '').replace(/\s+/g, '').replace(/\.~/g, '~');
+    if (s.endsWith('.')) s = s.slice(0, -1);
+    var parts = s.split('~');
+    if (parts.length === 2 && parts[0] === parts[1]) return parts[0];
+    return s || formatShortDate(new Date());
+}
+
+function CornerCropper(props) {
+    var src=props.src, onSave=props.onSave, onCancel=props.onCancel;
+    var pts = useState([{x:10,y:10},{x:90,y:10},{x:90,y:90},{x:10,y:90}]);
+    var points=pts[0], setPoints=pts[1];
+    var di = useState(null); var draggingIdx=di[0], setDraggingIdx=di[1];
+    var svgRef=useRef(null), containerRef=useRef(null);
+    var is = useState({w:0,h:0}); var imgSize=is[0], setImgSize=is[1];
+    useEffect(function() {
+        var img=new Image();
+        img.onload=function(){var c=containerRef.current;if(!c)return;var ratio=Math.min(c.clientWidth/img.naturalWidth,c.clientHeight/img.naturalHeight);setImgSize({w:img.naturalWidth*ratio,h:img.naturalHeight*ratio});};
+        img.src=src;
+    }, [src]);
+    function getPos(ev){var rect=svgRef.current.getBoundingClientRect(),t=ev.touches?ev.touches[0]:ev;return{x:((t.clientX-rect.left)/rect.width)*100,y:((t.clientY-rect.top)/rect.height)*100};}
+    function handleMove(ev){if(draggingIdx===null)return;var pos=getPos(ev);setPoints(function(prev){return prev.map(function(p,i){return i===draggingIdx?{x:Math.max(0,Math.min(100,pos.x)),y:Math.max(0,Math.min(100,pos.y))}:p;});});}
+    function generateResult(){var img=new Image();img.onload=function(){var canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');var px=points.map(function(p){return{x:(p.x/100)*img.naturalWidth,y:(p.y/100)*img.naturalHeight};});var minX=Math.min.apply(null,px.map(function(p){return p.x;})),maxX=Math.max.apply(null,px.map(function(p){return p.x;}));var minY=Math.min.apply(null,px.map(function(p){return p.y;})),maxY=Math.max.apply(null,px.map(function(p){return p.y;}));canvas.width=maxX-minX;canvas.height=maxY-minY;ctx.beginPath();ctx.moveTo(px[0].x-minX,px[0].y-minY);ctx.lineTo(px[1].x-minX,px[1].y-minY);ctx.lineTo(px[2].x-minX,px[2].y-minY);ctx.lineTo(px[3].x-minX,px[3].y-minY);ctx.closePath();ctx.clip();ctx.drawImage(img,-minX,-minY);onSave(canvas.toDataURL('image/jpeg',0.9));};img.src=src;}
+    var pp=points;
+    var pointsPath='M '+pp[0].x+','+pp[0].y+' L '+pp[1].x+','+pp[1].y+' L '+pp[2].x+','+pp[2].y+' L '+pp[3].x+','+pp[3].y+' Z';
+    var overlayPath='M 0,0 L 100,0 L 100,100 L 0,100 Z '+pointsPath;
+    return e('div',{className:'fixed inset-0 z-50 bg-slate-900 flex flex-col overflow-hidden animate-fade-in'},
+        e('div',{className:'p-6 flex justify-between items-center bg-slate-900/50 backdrop-blur-md'},
+            e('button',{onClick:onCancel,className:'text-white font-bold px-4 py-2 rounded-xl bg-white/10'},'취소'),
+            e('h3',{className:'text-white font-bold'},'영역 조정'),
+            e('button',{onClick:generateResult,className:'text-white font-bold px-6 py-2 rounded-xl bg-indigo-500'},'완료')
+        ),
+        e('div',{ref:containerRef,className:'flex-1 relative flex items-center justify-center p-4'},
+            e('div',{style:{width:imgSize.w,height:imgSize.h},className:'relative'},
+                e('img',{src:src,className:'w-full h-full object-contain select-none pointer-events-none'}),
+                e('svg',{ref:svgRef,viewBox:'0 0 100 100',preserveAspectRatio:'none',className:'absolute inset-0 w-full h-full touch-none',
+                    onMouseMove:handleMove,onTouchMove:handleMove,
+                    onMouseUp:function(){setDraggingIdx(null);},onTouchEnd:function(){setDraggingIdx(null);},onMouseLeave:function(){setDraggingIdx(null);}},
+                    e('path',{d:overlayPath,className:'crop-overlay'}),
+                    e('path',{d:pointsPath,className:'crop-line',fill:'none'}),
+                    ...points.map(function(p,i){return e('circle',{key:i,cx:p.x,cy:p.y,r:'3',className:'handle',onMouseDown:function(){setDraggingIdx(i);},onTouchStart:function(){setDraggingIdx(i);}});})
                 )
-            );
+            )
+        ),
+        e('div',{className:'p-8 text-center bg-slate-900'},
+            e('p',{className:'text-white/60 text-sm font-medium flex items-center justify-center gap-2'},Icon('info',16),' 각 모서리를 드래그하여 영수증에 맞추세요')
+        )
+    );
+}
 
-            var notifEl = notification && e('div', { className: 'absolute bottom-6 left-6 right-6 z-50 animate-slide-up' },
-                e('div', { className: 'px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border ' + (notification.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : notification.type === 'error' ? 'bg-rose-50 border-rose-100 text-rose-700' : 'bg-indigo-50 border-indigo-100 text-indigo-700') },
-                    Icon(notification.type === 'success' ? 'checkCircle' : notification.type === 'error' ? 'alertCircle' : 'info', 20),
-                    e('span', { className: 'font-bold text-sm leading-tight' }, notification.text)
-                )
-            );
+function App() {
+    var s1=useState(1); var step=s1[0],setStep=s1[1];
+    var s2=useState(formatDate(new Date())+' ~ '+formatDate(new Date())); var dateRange=s2[0],setDateRange=s2[1];
+    var s3=useState([]); var images=s3[0],setImages=s3[1];
+    var s4=useState([]); var previewImages=s4[0],setPreviewImages=s4[1];
+    var s5=useState(false); var isProcessing=s5[0],setIsProcessing=s5[1];
+    var s6=useState(false); var isGenerating=s6[0],setIsGenerating=s6[1];
+    var s7=useState(false); var isSending=s7[0],setIsSending=s7[1];
+    var s8=useState(null); var notification=s8[0],setNotification=s8[1];
+    var s9=useState(null); var croppingImg=s9[0],setCroppingImg=s9[1];
+    var s10=useState(''); var email=s10[0],setEmail=s10[1];
+    var s11=useState(true); var saveEmail=s11[0],setSaveEmail=s11[1];
+    var s12=useState(null); var googleEmail=s12[0],setGoogleEmail=s12[1];
+    var s13=useState(false); var sentOk=s13[0],setSentOk=s13[1];
+    var s14=useState(''); var senderName=s14[0],setSenderName=s14[1];
+    var dateInputRef=useRef(null);
+    var pageJpegsRef=useRef([]); // 미리보기 때 만든 페이지 이미지를 PDF 생성에 재사용
 
-            return e('div', { className: 'flex items-center justify-center min-h-screen p-4' },
-                e('div', { className: 'w-full max-w-lg glass-card rounded-[40px] shadow-2xl p-6 sm:p-8 transition-all overflow-hidden relative' },
-                    step1El, step2El, step3El, notifEl
-                ),
-                croppingImg && e(CornerCropper, {
-                    src: croppingImg.src,
-                    onSave: function (newSrc) { setImages(function (prev) { return prev.map(function (img) { return img.id === croppingImg.id ? Object.assign({}, img, { src: newSrc }) : img; }); }); setCroppingImg(null); showMessage('영역이 수정되었습니다.', 'success'); },
-                    onCancel: function () { setCroppingImg(null); }
-                })
-            );
+    useEffect(function(){
+        function handlePop(ev){setStep((ev.state&&ev.state.step)||1);setCroppingImg(null);setSentOk(false);}
+        window.addEventListener('popstate',handlePop);
+        if(!window.history.state)window.history.replaceState({step:1},'');
+        var saved=localStorage.getItem('receipt_flow_email');if(saved)setEmail(saved);
+        var savedG=localStorage.getItem('receipt_flow_google_email');if(savedG)setGoogleEmail(savedG);
+        var savedN=localStorage.getItem('receipt_flow_name');if(savedN)setSenderName(savedN);
+        var to=new URLSearchParams(window.location.search).get('to');
+        if(to){
+            setEmail(to);localStorage.setItem('receipt_flow_email',to);
+            window.history.replaceState(window.history.state||{step:1},'',window.location.pathname);
+            setTimeout(function(){showMessage('수신자 이메일('+to+')이 설정되었습니다.','success');},400);
         }
+        return function(){window.removeEventListener('popstate',handlePop);};
+    },[]);
 
-        ReactDOM.createRoot(document.getElementById('root')).render(e(App, null));
-    </script>
+    useEffect(function(){
+        if(step===1&&dateInputRef.current){
+            flatpickr(dateInputRef.current,{
+                mode:'range',
+                locale:'ko',
+                dateFormat:'Y. m. d.',
+                defaultDate:[new Date(),new Date()],
+                onChange:function(dates){
+                    if(dates.length===2)setDateRange(formatDate(dates[0])+' ~ '+formatDate(dates[1]));
+                },
+                onClose:function(dates){
+                    if(dates.length===1)setDateRange(formatDate(dates[0])+' ~ '+formatDate(dates[0]));
+                    else if(dates.length===2)setDateRange(formatDate(dates[0])+' ~ '+formatDate(dates[1]));
+                }
+            });
+        }
+        if(step===3)generatePreview();
+    },[step]);
+
+    function navigateTo(next){window.history.pushState({step:next},'');setStep(next);setSentOk(false);}
+    function showMessage(text,type){setNotification({text:text,type:type||'info'});setTimeout(function(){setNotification(null);},4000);}
+
+    function handleFileUpload(ev){
+        var files=Array.from(ev.target.files);if(!files.length)return;
+        setIsProcessing(true);
+        Promise.all(files.map(function(file){return new Promise(function(res){var r=new FileReader();r.onload=function(e2){res({id:Math.random().toString(36).substr(2,9),src:e2.target.result});};r.readAsDataURL(file);});}))
+        .then(function(results){setImages(function(prev){return[...prev,...results];});setIsProcessing(false);});
+    }
+    function removeImage(id){setImages(function(prev){return prev.filter(function(img){return img.id!==id;});});}
+
+    function renderPage(pageNum,perPage,pw,ph,pad,gap,gh){
+        var pc=document.createElement('div');
+        pc.style.cssText='width:'+pw+'px;height:'+ph+'px;background:white;padding:'+pad+'px;position:fixed;top:0;left:0;z-index:-9999;font-family:sans-serif;display:flex;flex-direction:column;box-sizing:border-box;';
+        var hdr=document.createElement('div');
+        hdr.style.cssText='display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px;padding-bottom:15px;border-bottom:3px solid #4F46E5;flex-shrink:0;';
+        hdr.innerHTML='<div style="font-size:32px;font-weight:bold;color:#1F2937;">출장 증빙</div><div style="font-size:14px;color:#6B7280;text-align:right;">'+(senderName?'제출자 <b style="color:#1F2937;">'+escapeHtml(senderName.trim())+'</b><br>':'')+'출장 기간<br><b style="color:#4F46E5;">'+dateRange+'</b></div>';
+        pc.appendChild(hdr);
+        var grid=document.createElement('div');
+        grid.style.cssText='display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:'+gap+'px;width:100%;height:'+gh+'px;';
+        var start=pageNum*perPage,end=Math.min(start+perPage,images.length),loads=[];
+        for(var i=start;i<end;i++){
+            var wrap=document.createElement('div');
+            wrap.style.cssText='border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;background:#F9FAFB;display:flex;align-items:center;justify-content:center;';
+            var img=document.createElement('img');
+            (function(imgEl,src){
+                loads.push(new Promise(function(res){imgEl.src=src;if(imgEl.decode)imgEl.decode().then(res).catch(function(){imgEl.onload=res;imgEl.onerror=res;});else{if(imgEl.complete)res();else{imgEl.onload=res;imgEl.onerror=res;}}}));
+                imgEl.style.cssText='max-width:100%;max-height:100%;object-fit:contain;display:block;';
+                wrap.appendChild(imgEl);grid.appendChild(wrap);
+            })(img,images[i].src);
+        }
+        pc.appendChild(grid);document.body.appendChild(pc);
+        return (loads.length?Promise.all(loads):Promise.resolve())
+            .then(function(){return new Promise(function(res){setTimeout(function(){requestAnimationFrame(res);},500);});})
+            .then(function(){return html2canvas(pc,{scale:2,useCORS:true,logging:false,allowTaint:true,backgroundColor:'#ffffff'});})
+            .then(function(canvas){document.body.removeChild(pc);return canvas;});
+    }
+
+    function buildPdfFromPages(pages){
+        var jsPDF=window.jspdf.jsPDF;
+        var doc=new jsPDF({orientation:'p',unit:'mm',format:'a4',compress:true});
+        pages.forEach(function(src,i){if(i>0)doc.addPage();doc.addImage(src,'JPEG',0,0,210,297);});
+        return doc.output('blob');
+    }
+
+    function buildPdfBlob(){
+        if(pageJpegsRef.current.length)return Promise.resolve(buildPdfFromPages(pageJpegsRef.current));
+        var perPage=4,total=Math.ceil(images.length/perPage),pages=[];
+        var chain=Promise.resolve();
+        for(var p=0;p<total;p++){
+            (function(pageNum){chain=chain.then(function(){
+                return renderPage(pageNum,perPage,794,1123,40,20,943).then(function(canvas){
+                    pages.push(canvas.toDataURL('image/jpeg',0.75));
+                });
+            });})(p);
+        }
+        return chain.then(function(){return buildPdfFromPages(pages);});
+    }
+
+    function generatePreview(){
+        setIsGenerating(true);
+        pageJpegsRef.current=[];
+        var perPage=4,total=Math.ceil(images.length/perPage)||1,arr=[],jpgs=[];
+        var chain=Promise.resolve();
+        for(var p=0;p<total;p++){
+            (function(pageNum){chain=chain.then(function(){
+                return renderPage(pageNum,perPage,794,1123,40,20,943).then(function(canvas){
+                    arr.push(canvas.toDataURL('image/png'));
+                    jpgs.push(canvas.toDataURL('image/jpeg',0.75));
+                });
+            });})(p);
+        }
+        chain.then(function(){pageJpegsRef.current=jpgs;setPreviewImages(arr);setIsGenerating(false);});
+    }
+
+    // 파일명: 출장기간 기준 (예: '2026.10.14~2026.10.16.pdf' 또는 '홍길동_2026.10.14~2026.10.16.pdf')
+    function makeFilename(){
+        var period = getTripPeriodString(dateRange);
+        var n = senderName.trim();
+        return (n ? n + '_' : '') + period + '.pdf';
+    }
+    function makeSubject(){
+        var period = getTripPeriodString(dateRange);
+        var n = senderName.trim();
+        return '[출장 증빙] ' + (n ? n + ' / ' : '') + period + ' 영수증 정산서 제출';
+    }
+    function makeBody(){
+        var n = senderName.trim();
+        return '안녕하세요' + (n ? ', ' + n + '입니다' : '') + '.\n\n' + dateRange + ' 기간의 출장비 사용 내역 증빙 서류를 첨부 파일로 제출합니다.\n\n감사합니다.';
+    }
+
+    function triggerDownload(blob,filename){
+        var url=URL.createObjectURL(blob);
+        var a=document.createElement('a');a.href=url;a.download=filename;
+        document.body.appendChild(a);a.click();
+        setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+    }
+
+    function downloadPDF(){
+        setIsGenerating(true);
+        buildPdfBlob().then(function(blob){
+            var fname = makeFilename();
+            triggerDownload(blob,fname);
+            setIsGenerating(false);
+            showMessage(fname + ' 저장이 완료되었습니다.','success');
+        });
+    }
+
+    function handleGoogleSignOut(){
+        signOutGoogle();setGoogleEmail(null);localStorage.removeItem('receipt_flow_google_email');
+        showMessage('Google 계정에서 로그아웃했어요.','info');
+    }
+
+    function handleAutoSend(){
+        var trimmed = email.trim();
+        if(!trimmed){
+            showMessage('수신자 사외 이메일 주소를 입력해주세요. (필수)','error');
+            return;
+        }
+        if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)){
+            showMessage('올바른 이메일 형식(예: user@company.com)을 입력해주세요.','error');
+            return;
+        }
+        setIsSending(true);
+        requestGoogleToken(googleEmail).then(function(result){
+            if(result.email){setGoogleEmail(result.email);localStorage.setItem('receipt_flow_google_email',result.email);}
+            showMessage('사외 메일('+trimmed+')로 정산서 발송 중...','info');
+            return buildPdfBlob();
+        }).then(function(blob){
+            return sendViaGmailAPI(trimmed,makeSubject(),makeBody(),blob,makeFilename());
+        }).then(function(){
+            setSentOk(true);setIsSending(false);
+            showMessage('전송 완료! '+trimmed+'로 PDF가 발송되었습니다.','success');
+        }).catch(function(err){
+            console.error(err);setIsSending(false);
+            var msg=(err&&err.message)||'';
+            if(/access_denied|denied|403|insufficient/i.test(msg)){
+                msg='Google 계정 승인이 필요합니다. 팝업에서 [고급] → [smr-jungsan(으)로 이동]을 눌러주세요.';
+            }
+            showMessage('전송 실패: '+msg,'error');
+        });
+    }
+
+    var step1El = step===1 && e('div',{className:'text-center py-4 animate-fade-in'},
+        e('div',{className:'flex justify-center mb-4 mt-2'},
+            e('div',{className:'p-4 rounded-3xl bg-white shadow-sm text-indigo-500'},Icon('receipt',40))
+        ),
+        e('h1',{className:'text-3xl sm:text-4xl font-black mb-2 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-pink-500 tracking-tight'},'SMR사업실 출장증빙'),
+        e('p',{className:'text-slate-500 mb-8 font-medium text-sm'},'간단하게 출장증빙 만들기'),
+        e('div',{className:'bg-white rounded-3xl shadow-sm p-2 flex flex-col border border-indigo-50 gap-2 mb-6 text-left'},
+            e('label',{className:'text-xs font-bold text-indigo-400 px-4 pt-2 uppercase tracking-tighter'},'출장 기간 설정'),
+            e('div',{className:'flex items-center pb-2'},
+                e('div',{className:'pl-4 text-indigo-400'},Icon('calendar',20)),
+                e('input',{ref:dateInputRef,className:'flex-grow bg-transparent outline-none px-4 text-slate-700 font-bold text-lg text-center cursor-pointer',value:dateRange,readOnly:true,onChange:function(){}})
+            )
+        ),
+        e('button',{onClick:function(){navigateTo(2);},className:'w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-[24px] py-5 font-bold active:scale-95 shadow-xl shadow-indigo-100 transition-all flex items-center justify-center gap-2 text-base'},'영수증 업로드 시작 ',Icon('chevronRight',20))
+    );
+
+    var step2El = step===2 && e('div',{className:'animate-slide-up'},
+        e('div',{className:'flex justify-between items-center mb-6'},
+            e('h2',{className:'text-2xl font-bold text-slate-800 flex items-center gap-2'},'영수증 추가 ',e('span',{className:'text-indigo-600 bg-indigo-50 px-3 py-0.5 rounded-full text-lg'},images.length)),
+            e('button',{onClick:function(){window.history.back();},className:'text-slate-400 text-sm font-semibold hover:text-indigo-500'},'이전')
+        ),
+        e('div',{className:'grid grid-cols-2 gap-4 mb-6'},
+            e('label',{className:'flex flex-col items-center justify-center h-36 border-2 border-dashed border-indigo-100 rounded-[32px] bg-white/50 cursor-pointer hover:bg-indigo-50/50 transition-all active:scale-95 group'},
+                e('div',{className:'w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform text-indigo-600'},Icon('camera')),
+                e('span',{className:'text-indigo-600 font-bold text-sm'},'카메라'),
+                e('input',{type:'file',multiple:true,accept:'image/*',capture:'environment',className:'hidden',onChange:handleFileUpload})
+            ),
+            e('label',{className:'flex flex-col items-center justify-center h-36 border-2 border-dashed border-pink-100 rounded-[32px] bg-white/50 cursor-pointer hover:bg-pink-50/50 transition-all active:scale-95 group'},
+                e('div',{className:'w-12 h-12 rounded-2xl bg-pink-100 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform text-pink-600'},Icon('image')),
+                e('span',{className:'text-pink-600 font-bold text-sm'},'갤러리'),
+                e('input',{type:'file',multiple:true,accept:'image/*',className:'hidden',onChange:handleFileUpload})
+            )
+        ),
+        e('div',{className:'grid grid-cols-3 gap-3 mb-8 max-h-72 overflow-y-auto p-1 custom-scrollbar'},
+            ...images.map(function(img){return e('div',{key:img.id,className:'relative aspect-square rounded-2xl overflow-hidden shadow-md group border-2 border-white cursor-pointer',onClick:function(){setCroppingImg(img);}},
+                e('img',{src:img.src,className:'w-full h-full object-cover'}),
+                e('div',{className:'absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white'},Icon('crop',24),e('span',{className:'text-[10px] font-bold mt-1'},'영역 조정')),
+                e('button',{onClick:function(ev){ev.stopPropagation();removeImage(img.id);},className:'absolute top-1 right-1 bg-rose-500 text-white rounded-full p-1.5 shadow-lg active:scale-90 z-10'},Icon('trash',14))
+            );}),
+            isProcessing&&e('div',{className:'aspect-square rounded-2xl bg-slate-100 flex items-center justify-center animate-pulse border-2 border-dashed border-slate-200'},e('div',{className:'w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin'}))
+        ),
+        e('button',{disabled:images.length===0||isProcessing,onClick:function(){navigateTo(3);},className:'w-full py-5 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white rounded-[24px] font-bold shadow-xl active:scale-95 disabled:opacity-30 transition-all flex items-center justify-center gap-2 text-base'},'정산서 미리보기 ',Icon('checkCircle'))
+    );
+
+    var step3El = step===3 && e('div',{className:'animate-fade-in flex flex-col'},
+        e('div',{className:'flex items-center justify-between mb-4'},
+            e('h2',{className:'text-2xl font-black text-slate-800'},'최종 확인 및 발송'),
+            e('button',{onClick:function(){window.history.back();},className:'text-indigo-600 font-bold text-sm bg-indigo-50 px-4 py-2 rounded-full active:scale-95 transition-all'},'이전')
+        ),
+        e('div',{className:'overflow-y-auto custom-scrollbar pb-2'},
+            e('div',{className:'w-full bg-slate-200 rounded-[32px] mb-5 border-4 border-white overflow-hidden shadow-inner relative flex flex-col items-center min-h-[260px]'},
+                isGenerating&&previewImages.length===0
+                    ? e('div',{className:'absolute inset-0 flex flex-col items-center justify-center gap-4'},e('div',{className:'w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin'}),e('p',{className:'text-indigo-600 font-bold'},'미리보기 생성 중...'))
+                    : previewImages.length>0&&e('div',{className:'w-full overflow-y-auto p-2 space-y-2 custom-scrollbar',style:{maxHeight:'260px'}},
+                        ...previewImages.map(function(src,i){return e('img',{key:i,src:src,className:'w-full h-auto object-contain rounded-[16px] shadow-sm bg-white'});}))
+            ),
+            e('div',{className:'bg-white rounded-[28px] p-5 mb-4 border border-indigo-100 shadow-md shadow-indigo-50'},
+                e('div',{className:'flex items-center justify-between mb-2 px-1'},
+                    e('label',{className:'text-xs font-bold text-slate-700 flex items-center gap-1.5'},
+                        Icon('mail',16,'text-indigo-600'),
+                        '수신자 사외 이메일',
+                        e('span',{className:'text-rose-500 font-black bg-rose-50 px-1.5 py-0.5 rounded text-[10px] border border-rose-100'},'필수')
+                    ),
+                    e('span',{className:'text-[11px] text-indigo-600 font-bold'},'사내 인트라넷 반입용')
+                ),
+                e('div',{className:'flex items-center gap-2 mb-2 bg-slate-50 rounded-2xl px-3.5 py-3 border border-slate-200 focus-within:border-indigo-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100 transition-all'},
+                    e('input',{
+                        type:'email',
+                        placeholder:'예: employee@naver.com (본인 사외메일 주소)',
+                        className:'flex-grow bg-transparent outline-none text-slate-800 font-bold text-base placeholder:font-normal placeholder:text-slate-400',
+                        value:email,
+                        onChange:function(ev){
+                            var v=ev.target.value;
+                            setEmail(v);
+                            if(saveEmail)localStorage.setItem('receipt_flow_email',v);
+                        }
+                    })
+                ),
+                e('label',{className:'flex items-center gap-2 px-1 cursor-pointer'},
+                    e('div',{className:'w-4 h-4 rounded flex items-center justify-center transition-colors '+(saveEmail?'bg-indigo-600':'bg-slate-200')},saveEmail&&Icon('check',12,'text-white')),
+                    e('input',{type:'checkbox',checked:saveEmail,onChange:function(ev){var c=ev.target.checked;setSaveEmail(c);if(c)localStorage.setItem('receipt_flow_email',email);else localStorage.removeItem('receipt_flow_email');},className:'hidden'}),
+                    e('span',{className:'text-xs text-slate-600 font-semibold'},'이 브라우저에 내 사외 이메일 주소 기억하기')
+                )
+            ),
+            sentOk
+                ? e('div',{className:'w-full py-6 bg-emerald-50 border-2 border-emerald-200 rounded-[28px] flex flex-col items-center justify-center gap-2.5 animate-slide-up p-4'},
+                    e('div',{className:'flex items-center gap-2 text-emerald-600 font-black text-xl'},Icon('checkCircle',28,'text-emerald-500'),'전송 완료!'),
+                    e('p',{className:'text-sm text-emerald-700 text-center font-bold break-all'},email+' 주소로\n정산서 PDF 발송이 완료되었습니다.'),
+                    e('p',{className:'text-xs text-emerald-600 text-center'},'사외 메일함을 확인하신 후 사내 인트라넷망으로 가져오시면 됩니다.'),
+                    e('button',{onClick:function(){setSentOk(false);},className:'mt-3 text-xs font-bold text-emerald-700 bg-white border border-emerald-200 px-5 py-2.5 rounded-full hover:bg-emerald-100 active:scale-95 transition-all shadow-sm'},'다시 전송하기')
+                  )
+                : e('div',{className:'flex flex-col gap-2.5'},
+                    e('button',{
+                        id:'mail-send',
+                        onClick:handleAutoSend,
+                        disabled:isSending||isGenerating,
+                        className:'w-full py-5 px-6 bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-700 hover:from-indigo-700 hover:to-violet-800 text-white rounded-[26px] font-black active:scale-95 transition-all flex items-center justify-center gap-3 shadow-2xl shadow-indigo-300/60 disabled:opacity-50 text-lg sm:text-xl tracking-tight'
+                    },
+                        isSending
+                            ? [e('div',{key:0,className:'w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin'}),'사외 메일로 전송 중...']
+                            : [
+                                e('span',{key:1,className:'w-9 h-9 rounded-full bg-white flex items-center justify-center p-1 shadow-md overflow-hidden flex-shrink-0'},
+                                    e('img',{src:'khnp_symbol.png',alt:'KHNP',className:'w-full h-full object-contain'})
+                                ),
+                                e('span',{key:2},'사외 이메일로 전송')
+                              ]
+                    ),
+                    e('div',{className:'bg-indigo-50/70 rounded-xl px-3 py-1.5 text-center -mt-1 mb-1'},
+                        e('span',{className:'text-[11px] font-bold text-indigo-700 font-mono'},'첨부 파일명: ' + makeFilename())
+                    ),
+                    e('button',{
+                        id:'download-pdf',
+                        onClick:downloadPDF,
+                        disabled:isGenerating||isSending,
+                        className:'w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[22px] font-bold active:scale-95 transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-600/25 disabled:opacity-50 text-base'
+                    },
+                        Icon('fileDown',20,'text-white'),'출장증빙 다운로드'
+                    ),
+                    e('div',{className:'mt-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-slate-500 space-y-1.5'},
+                        e('div',{className:'flex items-center gap-2 font-medium'},
+                            e('div',{className:'w-2 h-2 rounded-full flex-shrink-0 '+(googleEmail?'bg-emerald-400':'bg-slate-300')}),
+                            e('span',{className:'flex-grow truncate text-slate-600'},googleEmail?'발송 계정(Google): '+googleEmail:'발송 계정(Google): 전송 시 1회 로그인 필요'),
+                            googleEmail&&e('button',{onClick:handleGoogleSignOut,className:'text-[11px] font-bold text-slate-400 hover:text-rose-500 underline'},'계정 변경')
+                        ),
+                        e('div',{className:'text-[11px] text-slate-400 leading-relaxed border-t border-slate-200/60 pt-1.5'},
+                            '💡 ',
+                            e('strong',{className:'text-slate-600'},'Google 로그인 안내:'),
+                            ' 로그인 창에 ',
+                            e('span',{className:'text-amber-600 font-bold'},'\'확인하지 않은 앱\''),
+                            ' 화면이 나타나면 좌측 하단의 ',
+                            e('span',{className:'font-bold text-slate-700'},'[고급]'),
+                            ' 클릭 후 ',
+                            e('span',{className:'font-bold text-slate-700'},'[smr-jungsan(으)로 이동(안전하지 않음)]'),
+                            '을 누르시면 정상 전송됩니다.'
+                        )
+                    )
+                )
+        )
+    );
+
+    var notifEl = notification && e('div',{className:'absolute bottom-6 left-6 right-6 z-50 animate-slide-up'},
+        e('div',{className:'px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border '+(notification.type==='success'?'bg-emerald-50 border-emerald-100 text-emerald-700':notification.type==='error'?'bg-rose-50 border-rose-100 text-rose-700':'bg-indigo-50 border-indigo-100 text-indigo-700')},
+            Icon(notification.type==='success'?'checkCircle':notification.type==='error'?'alertCircle':'info',20),
+            e('span',{className:'font-bold text-sm leading-tight'},notification.text)
+        )
+    );
+
+    return e('div',{className:'flex items-center justify-center min-h-screen p-4'},
+        e('div',{className:'w-full max-w-lg glass-card rounded-[40px] shadow-2xl p-6 sm:p-8 transition-all overflow-hidden relative'},
+            step1El, step2El, step3El, notifEl
+        ),
+        croppingImg&&e(CornerCropper,{
+            src:croppingImg.src,
+            onSave:function(newSrc){setImages(function(prev){return prev.map(function(img){return img.id===croppingImg.id?Object.assign({},img,{src:newSrc}):img;});});setCroppingImg(null);showMessage('영역이 수정되었습니다.','success');},
+            onCancel:function(){setCroppingImg(null);}
+        })
+    );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(e(App,null));
+</script>
 </body>
-
 </html>
