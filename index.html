@@ -280,7 +280,6 @@ function App() {
     var s11=useState(true); var saveEmail=s11[0],setSaveEmail=s11[1];
     var s12=useState(null); var googleEmail=s12[0],setGoogleEmail=s12[1];
     var s13=useState(false); var sentOk=s13[0],setSentOk=s13[1];
-    var s14=useState(''); var senderName=s14[0],setSenderName=s14[1];
     var dateInputRef=useRef(null);
     var pageJpegsRef=useRef([]); // 미리보기 때 만든 페이지 이미지를 PDF 생성에 재사용
 
@@ -290,7 +289,6 @@ function App() {
         if(!window.history.state)window.history.replaceState({step:1},'');
         var saved=localStorage.getItem('receipt_flow_email');if(saved)setEmail(saved);
         var savedG=localStorage.getItem('receipt_flow_google_email');if(savedG)setGoogleEmail(savedG);
-        var savedN=localStorage.getItem('receipt_flow_name');if(savedN)setSenderName(savedN);
         var to=new URLSearchParams(window.location.search).get('to');
         if(to){
             setEmail(to);localStorage.setItem('receipt_flow_email',to);
@@ -335,7 +333,7 @@ function App() {
         pc.style.cssText='width:'+pw+'px;height:'+ph+'px;background:white;padding:'+pad+'px;position:fixed;top:0;left:0;z-index:-9999;font-family:sans-serif;display:flex;flex-direction:column;box-sizing:border-box;';
         var hdr=document.createElement('div');
         hdr.style.cssText='display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px;padding-bottom:15px;border-bottom:3px solid #4F46E5;flex-shrink:0;';
-        hdr.innerHTML='<div style="font-size:32px;font-weight:bold;color:#1F2937;">출장 증빙</div><div style="font-size:14px;color:#6B7280;text-align:right;">'+(senderName?'제출자 <b style="color:#1F2937;">'+escapeHtml(senderName.trim())+'</b><br>':'')+'출장 기간<br><b style="color:#4F46E5;">'+dateRange+'</b></div>';
+        hdr.innerHTML='<div style="font-size:32px;font-weight:bold;color:#1F2937;">출장 증빙</div><div style="font-size:14px;color:#6B7280;text-align:right;">출장 기간<br><b style="color:#4F46E5;">'+dateRange+'</b></div>';
         pc.appendChild(hdr);
         var grid=document.createElement('div');
         grid.style.cssText='display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:'+gap+'px;width:100%;height:'+gh+'px;';
@@ -394,20 +392,17 @@ function App() {
         chain.then(function(){pageJpegsRef.current=jpgs;setPreviewImages(arr);setIsGenerating(false);});
     }
 
-    // 파일명: 출장기간 기준 (예: '2026.10.14~2026.10.16.pdf' 또는 '홍길동_2026.10.14~2026.10.16.pdf')
+    // 파일명: 출장기간 기준 (예: '2026.10.14~2026.10.16.pdf')
     function makeFilename(){
         var period = getTripPeriodString(dateRange);
-        var n = senderName.trim();
-        return (n ? n + '_' : '') + period + '.pdf';
+        return period + '.pdf';
     }
     function makeSubject(){
         var period = getTripPeriodString(dateRange);
-        var n = senderName.trim();
-        return '[출장 증빙] ' + (n ? n + ' / ' : '') + period + ' 영수증 정산서 제출';
+        return '[출장 증빙] ' + period + ' 영수증 정산서 제출';
     }
     function makeBody(){
-        var n = senderName.trim();
-        return '안녕하세요' + (n ? ', ' + n + '입니다' : '') + '.\n\n' + dateRange + ' 기간의 출장비 사용 내역 증빙 서류를 첨부 파일로 제출합니다.\n\n감사합니다.';
+        return '안녕하세요.\n\n' + dateRange + ' 기간의 출장비 사용 내역 증빙 서류를 첨부 파일로 제출합니다.\n\n감사합니다.';
     }
 
     function triggerDownload(blob,filename){
