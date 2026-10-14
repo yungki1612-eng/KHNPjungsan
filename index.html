@@ -36,17 +36,77 @@
 
 var GOOGLE_CLIENT_ID = '295698892982-43un8nsvo6chaqi3i0k06t3ed1p0bjp4.apps.googleusercontent.com';
 var GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email';
+var GOOGLE_SESSION_KEY = 'smr_google_session_v2';
+var GOOGLE_SESSION_MAX_AGE = 365 * 24 * 60 * 60 * 1000; // 1년 영구 보관
 var _tokenClient = null;
 var _accessToken = null;
 var _googleEmail = null;
 var _tokenExpiresAt = 0;
 var _pendingReject = null;
 
+function loadStoredGoogleSession() {
+    try {
+        var raw = localStorage.getItem(GOOGLE_SESSION_KEY);
+        if (raw) {
+            var data = JSON.parse(raw);
+            if (data && data.loginAt && (Date.now() - data.loginAt < GOOGLE_SESSION_MAX_AGE)) {
+                if (data.token) _accessToken = data.token;
+                if (data.email) _googleEmail = data.email;
+                if (data.expiresAt) _tokenExpiresAt = data.expiresAt;
+                return data;
+            }
+        }
+        var legacyEmail = localStorage.getItem('receipt_flow_google_email');
+        if (legacyEmail) {
+            _googleEmail = legacyEmail;
+            return { email: legacyEmail };
+        }
+    } catch(e) {}
+    return null;
+}
+loadStoredGoogleSession();
+
+function saveStoredGoogleSession(token, email, expiresIn) {
+    _accessToken = token;
+    if (email) _googleEmail = email;
+    _tokenExpiresAt = Date.now() + (parseInt(expiresIn, 10) || 3600) * 1000;
+    var prev = loadStoredGoogleSession();
+    var session = {
+        token: _accessToken,
+        email: _googleEmail,
+        expiresAt: _tokenExpiresAt,
+        loginAt: (prev && prev.loginAt) ? prev.loginAt : Date.now()
+    };
+    try {
+        localStorage.setItem(GOOGLE_SESSION_KEY, JSON.stringify(session));
+        if (_googleEmail) localStorage.setItem('receipt_flow_google_email', _googleEmail);
+    } catch(e) {}
+    return session;
+}
+
+function clearStoredGoogleSession() {
+    if (_accessToken && window.google && google.accounts && google.accounts.oauth2) {
+        try { google.accounts.oauth2.revoke(_accessToken, function() {}); } catch (err) {}
+    }
+    _accessToken = null;
+    _googleEmail = null;
+    _tokenExpiresAt = 0;
+    try {
+        localStorage.removeItem(GOOGLE_SESSION_KEY);
+        localStorage.removeItem('receipt_flow_google_email');
+    } catch(e) {}
+}
+
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
 }
 
-function isTokenValid() { return _accessToken && Date.now() < _tokenExpiresAt - 60000; }
+function isTokenValid() {
+    if (!_accessToken || !_tokenExpiresAt) {
+        loadStoredGoogleSession();
+    }
+    return !!(_accessToken && Date.now() < _tokenExpiresAt - 60000);
+}
 
 function waitForGsi() {
     return new Promise(function(resolve) {
@@ -58,27 +118,42 @@ function waitForGsi() {
 }
 
 function requestGoogleToken(hintEmail) {
-    // 유효한 토큰이 있으면 팝업 없이 바로 사용
+    // 1. 이미 유효한 토큰이 있으면 팝업 없이 0초 만에 바로 사용
     if (isTokenValid()) return Promise.resolve({ token: _accessToken, email: _googleEmail });
+
+    var targetEmail = hintEmail || _googleEmail;
+    if (!targetEmail) {
+        var s = loadStoredGoogleSession();
+        if (s && s.email) targetEmail = s.email;
+    }
+
     return waitForGsi().then(function() {
         return new Promise(function(resolve, reject) {
-            function setupCallback() {
-                _pendingReject = reject;
-                _tokenClient.callback = function(resp) {
-                    _pendingReject = null;
-                    if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
-                    _accessToken = resp.access_token;
-                    _tokenExpiresAt = Date.now() + (resp.expires_in || 3600) * 1000;
-                    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                        headers: { Authorization: 'Bearer ' + _accessToken }
-                    }).then(function(r) { return r.json(); }).then(function(info) {
-                        _googleEmail = info.email;
-                        resolve({ token: _accessToken, email: _googleEmail });
-                    }).catch(function() {
-                        resolve({ token: _accessToken, email: _googleEmail });
-                    });
-                };
+            function handleResponse(resp) {
+                if (resp.error) {
+                    // silent 모드(prompt: '')에서 상호작용이 필요한 경우, select_account로 1회 재시도
+                    if ((resp.error === 'interaction_required' || resp.error === 'consent_required') && targetEmail) {
+                        _tokenClient.callback = handleResponse;
+                        _tokenClient.requestAccessToken({ prompt: 'select_account', hint: targetEmail });
+                        return;
+                    }
+                    reject(new Error(resp.error_description || resp.error));
+                    return;
+                }
+                var token = resp.access_token;
+                var expiresIn = resp.expires_in || 3600;
+                fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: 'Bearer ' + token }
+                }).then(function(r) { return r.json(); }).then(function(info) {
+                    var email = (info && info.email) || targetEmail || _googleEmail;
+                    saveStoredGoogleSession(token, email, expiresIn);
+                    resolve({ token: _accessToken, email: _googleEmail });
+                }).catch(function() {
+                    saveStoredGoogleSession(token, targetEmail || _googleEmail, expiresIn);
+                    resolve({ token: _accessToken, email: _googleEmail });
+                });
             }
+
             if (!_tokenClient) {
                 _tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: GOOGLE_CLIENT_ID,
@@ -94,20 +169,20 @@ function requestGoogleToken(hintEmail) {
                     }
                 });
             }
-            setupCallback();
-            // 이전에 로그인한 계정이 있으면 동의 화면 없이 해당 계정으로, 없으면 계정 선택
-            var opts = { prompt: hintEmail ? '' : 'select_account' };
-            if (hintEmail) opts.hint = hintEmail;
+
+            _pendingReject = reject;
+            _tokenClient.callback = function(resp) {
+                _pendingReject = null;
+                handleResponse(resp);
+            };
+
+            // 이미 인증했던 계정이 있으면 동의/선택 창 없이 silent(prompt: '') 갱신
+            // 최초 1회 로그인일 때만 계정 선택 창 표시
+            var opts = { prompt: targetEmail ? '' : 'select_account' };
+            if (targetEmail) opts.hint = targetEmail;
             _tokenClient.requestAccessToken(opts);
         });
     });
-}
-
-function signOutGoogle() {
-    if (_accessToken && window.google && google.accounts && google.accounts.oauth2) {
-        try { google.accounts.oauth2.revoke(_accessToken, function() {}); } catch (err) {}
-    }
-    _accessToken = null; _googleEmail = null; _tokenExpiresAt = 0;
 }
 
 function encodeRfc2047(text) {
@@ -133,7 +208,8 @@ function base64UrlEncode(str) {
     return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function sendViaGmailAPI(to, subject, bodyText, pdfBlob, filename) {
+function sendViaGmailAPI(to, subject, bodyText, pdfBlob, filename, retryCount) {
+    if (typeof retryCount === 'undefined') retryCount = 1;
     return pdfBlob.arrayBuffer().then(function(buf) {
         var bytes = new Uint8Array(buf);
         var pdfBin = '';
@@ -168,6 +244,13 @@ function sendViaGmailAPI(to, subject, bodyText, pdfBlob, filename) {
             body: JSON.stringify({ raw: raw })
         });
     }).then(function(res) {
+        if (res.status === 401 && retryCount > 0) {
+            _accessToken = null;
+            _tokenExpiresAt = 0;
+            return requestGoogleToken(_googleEmail).then(function() {
+                return sendViaGmailAPI(to, subject, bodyText, pdfBlob, filename, retryCount - 1);
+            });
+        }
         if (!res.ok) return res.json().then(function(err) { throw new Error(err.error && err.error.message || '전송 실패'); });
         return res.json();
     });
@@ -288,7 +371,7 @@ function App() {
         window.addEventListener('popstate',handlePop);
         if(!window.history.state)window.history.replaceState({step:1},'');
         var saved=localStorage.getItem('receipt_flow_email');if(saved)setEmail(saved);
-        var savedG=localStorage.getItem('receipt_flow_google_email');if(savedG)setGoogleEmail(savedG);
+        var s=loadStoredGoogleSession();if(s&&s.email)setGoogleEmail(s.email);
         var to=new URLSearchParams(window.location.search).get('to');
         if(to){
             setEmail(to);localStorage.setItem('receipt_flow_email',to);
@@ -423,8 +506,8 @@ function App() {
     }
 
     function handleGoogleSignOut(){
-        signOutGoogle();setGoogleEmail(null);localStorage.removeItem('receipt_flow_google_email');
-        showMessage('Google 계정에서 로그아웃했어요.','info');
+        clearStoredGoogleSession();setGoogleEmail(null);
+        showMessage('Google 계정 연결이 해제되었습니다.','info');
     }
 
     function handleAutoSend(){
@@ -578,19 +661,19 @@ function App() {
                     e('div',{className:'mt-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-slate-500 space-y-1.5'},
                         e('div',{className:'flex items-center gap-2 font-medium'},
                             e('div',{className:'w-2 h-2 rounded-full flex-shrink-0 '+(googleEmail?'bg-emerald-400':'bg-slate-300')}),
-                            e('span',{className:'flex-grow truncate text-slate-600'},googleEmail?'발송 계정(Google): '+googleEmail:'발송 계정(Google): 전송 시 1회 로그인 필요'),
+                            e('span',{className:'flex-grow truncate '+(googleEmail?'text-slate-700 font-bold':'text-slate-600')},googleEmail?'발송 계정: '+googleEmail+' (인증 완료 · 재인증 불필요)':'발송 계정(Google): 최초 1회만 인증하면 영구 유지됩니다'),
                             googleEmail&&e('button',{onClick:handleGoogleSignOut,className:'text-[11px] font-bold text-slate-400 hover:text-rose-500 underline'},'계정 변경')
                         ),
-                        e('div',{className:'text-[11px] text-slate-400 leading-relaxed border-t border-slate-200/60 pt-1.5'},
+                        !googleEmail && e('div',{className:'text-[11px] text-slate-400 leading-relaxed border-t border-slate-200/60 pt-1.5'},
                             '💡 ',
-                            e('strong',{className:'text-slate-600'},'Google 로그인 안내:'),
-                            ' 로그인 창에 ',
+                            e('strong',{className:'text-slate-600'},'최초 1회 인증 안내:'),
+                            ' 첫 전송 시 나타나는 팝업에서 ',
                             e('span',{className:'text-amber-600 font-bold'},'\'확인하지 않은 앱\''),
-                            ' 화면이 나타나면 좌측 하단의 ',
+                            ' 창이 뜨면 좌측 하단 ',
                             e('span',{className:'font-bold text-slate-700'},'[고급]'),
-                            ' 클릭 후 ',
-                            e('span',{className:'font-bold text-slate-700'},'[smr-jungsan(으)로 이동(안전하지 않음)]'),
-                            '을 누르시면 정상 전송됩니다.'
+                            ' → ',
+                            e('span',{className:'font-bold text-slate-700'},'[smr-jungsan(으)로 이동]'),
+                            '을 누르시면 이후에는 추가 인증 없이 계속 사용하실 수 있습니다.'
                         )
                     )
                 )
